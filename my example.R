@@ -1,24 +1,37 @@
-#read the file
-mushrooms <- read.csv(file.choose(), stringsAsFactors = TRUE)
+install.packages("randomForest")
+library(randomForest)
+install.packages("MASS")
+library(MASS)
 
-#explor the data set
-str(mushrooms)
-mushrooms$veil.type <- NULL
-table(mushrooms$class)
+data <- read.csv(file.choose())
 
-#creating random training and test datasets
-install.packages("OneR")
-library(OneR)
-mushroom_1R <- OneR(class ~ ., data = mushrooms)
-mushroom_1R
-#evaluating model performance
-summary(mushroom_1R)
+set.seed(17)
+data.rf <- randomForest(target ~., data=data,
+                       mtry=2, importance= TRUE,
+                       do.trace= 100)
+print(data.rf)
 
-#improving model performance
-install.packages("rJava", type = "source")
-library(rJava)
-install.packages("RWeka",, type = "source")
-library(RWeka)
-mushroom_JRip <- JRip(class ~ ., data = mushrooms)
-mushroom_JRip
 
+#model comparison
+install.packages("ipred")
+library(ipred)
+set.seed(131)
+error.RF <- numeric(10)
+for (i in 1:10) {
+  error.RF[i] <- errorest(type ~. , data = fgl, model= randomForest, mtry=2)$error
+}
+summary(error.RF)
+
+library(e1071)
+set.seed(563)
+error.SVM <- numeric(10)
+for (i in 1:10) {
+  error.SVM[i] <- errorest(type ~., data = fgl, model= svm, cost=10, gamma=1.5)$error
+}
+summary(error.SVM)
+
+# figure of random forest
+par(mfrow= c(2,2))
+for (i in 1:2) {
+  plot(sort(data.rf$importance[,i], dec= TRUE), type = "h", main = paste("Measure",i))
+}
