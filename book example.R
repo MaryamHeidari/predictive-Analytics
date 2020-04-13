@@ -1,83 +1,41 @@
-#read data set
-sms_raw <- read.csv(file.choose())
-str(sms_raw)
-table(sms_raw$type)
+#read the file
+credit <- read.csv(file.choose())
 
-#cleaning and standardizing text data
-install.packages("tm")
-library(tm)
-sms_corpus <- VCorpus(VectorSource(sms_raw$text))
-print(sms_corpus)
-#all lower case
-sms_corpus_clean <- tm_map(sms_corpus, content_transformer(tolower))
-#remove numbers
-sms_corpus_clean <- tm_map(sms_corpus_clean, removeNumbers)
-# remove filler words such as to, and, but, and or
-sms_corpus_clean <- tm_map(sms_corpus_clean, removeWords, stopwords())
-#eliminate any punctuation 
-sms_corpus_clean <- tm_map(sms_corpus_clean, removePunctuation)
-#stemming
-install.packages("SnowballC")
-library(SnowballC)
-sms_corpus_clean <- tm_map(sms_corpus_clean, stemDocument)
-sms_corpus_clean <- tm_map(sms_corpus_clean, stripWhitespace)
+#explor the data set
+str(credit)
+table(credit$checking_balance)
+table(credit$savings_balance)
+table(credit$default)
 
-#Creating a DTM sparse matrix and split the data set
-sms_dtm <- DocumentTermMatrix(sms_corpus_clean)
-sms_dtm
+#creating random training and test datasets
+set.seed(123)
+train_sample <- sample(1000, 900)
+str(train_sample)
+credit_train <- credit[train_sample, ] 
+credit_test <- credit[-train_sample, ]
+prop.table(table(credit_train$default))
+prop.table(table(credit_test$default))
+credit_train$default<-as.factor(credit_train$default)
 
-#creating training and test datasets
-sms_dtm_train <- sms_dtm[1:4169, ]
-sms_dtm_test <- sms_dtm[4170:5559, ]
-sms_train_labels <- sms_raw[1:4169, ]$type
-sms_test_labels <- sms_raw[4170:5559, ]$type
-
-prop.table(table(sms_train_labels))
-prop.table(table(sms_test_labels))
-
-#Visualizing text data
-install.packages("wordcloud")
-library(wordcloud)
-wordcloud(sms_corpus_clean, min.freq = 50, random.order = FALSE)
-
-spam <- subset(sms_raw, type == "spam")
-ham <- subset(sms_raw, type == "ham")
-wordcloud(spam$text, max.words = 40, scale = c(3, 0.5))
-wordcloud(ham$text, max.words = 40, scale = c(3, 0.5))
-
-#creating indicator features for frequent words
-#Finding frequent words
-findFreqTerms(sms_dtm_train, 5)
-sms_freq_words <- findFreqTerms(sms_dtm_train, 5)
-str(sms_freq_words)
-
-sms_dtm_freq_train<- sms_dtm_train[ , sms_freq_words] 
-sms_dtm_freq_test <- sms_dtm_test[ , sms_freq_words]
-
-# Naive Bayes classifier
-#convert counts to Yes/No strings
-convert_counts <- function(x) {
-  x <- ifelse(x > 0, "Yes", "No")
-}
-
-sms_train <- apply(sms_dtm_freq_train, MARGIN = 2, convert_counts)
-sms_test <- apply(sms_dtm_freq_test, MARGIN = 2, convert_counts)
-
-#training a model
-install.packages("e1071")
-library(e1071)
-sms_classifier <- naiveBayes(sms_train, sms_train_labels)
+#training a model on the data
+install.packages("C50")
+library(C50)
+credit_model <- C5.0(credit_train[-17], credit_train$default)
+credit_model
+summary(credit_model)
 
 #evaluating model performance
-sms_test_pred <- predict(sms_classifier, sms_test)
+credit_pred <- predict(credit_model, credit_test)
 library(gmodels)
-CrossTable(sms_test_pred, sms_test_labels,
-             prop.chisq = FALSE, prop.t = FALSE, dnn = c('predicted', 'actual'))
+CrossTable(credit_test$default, credit_pred,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE, 
+           dnn = c('actual default', 'predicted default'))
 
-#improving the model
-sms_classifier2 <- naiveBayes(sms_train, sms_train_labels,
-                              laplace = 1)
-sms_test_pred2 <- predict(sms_classifier2, sms_test)
-CrossTable(sms_test_pred2, sms_test_labels, prop.chisq = FALSE, prop.t = FALSE, 
-           prop.r = FALSE, dnn = c('predicted', 'actual'))
-
+#improving model performance
+credit_boost10 <- C5.0(credit_train[-17], credit_train$default, trials = 10)
+credit_boost10
+summary(credit_boost10)
+credit_boost_pred10 <- predict(credit_boost10, credit_test)
+CrossTable(credit_test$default, credit_boost_pred10,
+          prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE, 
+          dnn = c('actual default', 'predicted default'))
